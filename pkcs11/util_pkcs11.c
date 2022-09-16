@@ -770,6 +770,26 @@ static CK_RV get_attribute_secret_key(CK_ATTRIBUTE_TYPE type,
       *length = 0;
       break;
 
+    case CKA_VALUE_LEN:
+      switch (object->algorithm) {
+        case YH_ALGO_AES128_CCM_WRAP:
+          *((CK_ULONG *) value) = 16;
+          break;
+
+        case YH_ALGO_AES192_CCM_WRAP:
+          *((CK_ULONG *) value) = 24;
+          break;
+
+        case YH_ALGO_AES256_CCM_WRAP:
+          *((CK_ULONG *) value) = 32;
+          break;
+
+        default:
+          return CKR_FUNCTION_FAILED;
+      }
+      *length = sizeof(CK_ULONG);
+      break;
+
     default:
       return CKR_ATTRIBUTE_TYPE_INVALID;
   }
