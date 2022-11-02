@@ -1479,16 +1479,6 @@ CK_DEFINE_FUNCTION(CK_RV, C_CreateObject)
         rv = yrc_to_rv(rc);
         goto c_co_out;
       }
-
-      if (pkcs11meta.cka_id_len > 0 || pkcs11meta.cka_label_len > 0) {
-        pkcs11meta.object_id = template.id;
-        pkcs11meta.object_type = YH_ASYMMETRIC_KEY;
-        rv = write_meta_opaque(session, &pkcs11meta, false);
-        if (rc != CKR_OK) {
-          DBG_ERR("Failed writing meta opaque object to device");
-          goto c_co_out;
-        }
-      }
     } else if (key_type.d == CKK_EC) {
       rv = parse_ec_template(pTemplate, ulCount, &template);
       if (rv != CKR_OK) {
@@ -1521,15 +1511,6 @@ CK_DEFINE_FUNCTION(CK_RV, C_CreateObject)
         DBG_ERR("Failed writing EC key to device: %s", yh_strerror(rc));
         rv = yrc_to_rv(rc);
         goto c_co_out;
-      }
-      if (pkcs11meta.cka_id_len > 0 || pkcs11meta.cka_label_len > 0) {
-        pkcs11meta.object_id = template.id;
-        pkcs11meta.object_type = YH_ASYMMETRIC_KEY;
-        rv = write_meta_opaque(session, &pkcs11meta, false);
-        if (rv != CKR_OK) {
-          DBG_ERR("Failed writing meta opaque object to device");
-          goto c_co_out;
-        }
       }
     } else {
       rv = CKR_ATTRIBUTE_VALUE_INVALID;
@@ -1852,24 +1833,25 @@ CK_DEFINE_FUNCTION(CK_RV, C_DestroyObject)
       goto c_do_out;
     }
 
-    //yh_rc yrc;
+    yh_rc yrc;
     pkcs11_meta_object *meta_object =
       find_meta_object(session, object->object.id,
                        (object->object.type & 0x7f));
     if (meta_object != NULL) {
-      rv = yh_util_delete_object(session->slot->device_session,
-                                 meta_object->opaque_id, YH_OPAQUE);
-      if (rv != YHR_SUCCESS) {
-        DBG_ERR("Failed deleting object");
-        rv = CKR_FUNCTION_FAILED;
+      yrc = yh_util_delete_object(session->slot->device_session,
+                                  meta_object->opaque_id, YH_OPAQUE);
+      if (yrc != YHR_SUCCESS) {
+        DBG_ERR("Failed to delete meta opaque object: %s", yh_strerror(yrc));
+        rv = yrc_to_rv(yrc);
         goto c_do_out;
       }
     }
 
-    if (yh_util_delete_object(session->slot->device_session, object->object.id,
-                              object->object.type) != YHR_SUCCESS) {
-      DBG_ERR("Failed deleting object");
-      rv = CKR_FUNCTION_FAILED;
+    yrc = yh_util_delete_object(session->slot->device_session,
+                                object->object.id, object->object.type);
+    if (yrc != YHR_SUCCESS) {
+      DBG_ERR("Failed to delete object: %s", yh_strerror(yrc));
+      rv = yrc_to_rv(yrc);
       goto c_do_out;
     }
 
@@ -2065,7 +2047,6 @@ CK_DEFINE_FUNCTION(CK_RV, C_SetAttributeValue)
             rv = write_meta_opaque(session, pkcs11meta, true);
             if (rv != CKR_OK) {
               DBG_ERR("Failed to update meta opaque object to update CKA_ID");
-              rv = CKR_FUNCTION_FAILED;
               goto c_sav_out;
             }
           } else {
@@ -2080,7 +2061,6 @@ CK_DEFINE_FUNCTION(CK_RV, C_SetAttributeValue)
             if (rv != CKR_OK) {
               DBG_ERR(
                 "Failed to create a new meta opaque object to store CKA_ID");
-              rv = CKR_FUNCTION_FAILED;
               goto c_sav_out;
             }
           }
@@ -2108,7 +2088,6 @@ CK_DEFINE_FUNCTION(CK_RV, C_SetAttributeValue)
             if (rv != CKR_OK) {
               DBG_ERR(
                 "Failed to update meta opaque object to update CKA_LABEL");
-              rv = CKR_FUNCTION_FAILED;
               goto c_sav_out;
             }
           } else {
@@ -2123,7 +2102,6 @@ CK_DEFINE_FUNCTION(CK_RV, C_SetAttributeValue)
             if (rv != CKR_OK) {
               DBG_ERR(
                 "Failed to create a new meta opaque object to store CKA_LABEL");
-              rv = CKR_FUNCTION_FAILED;
               goto c_sav_out;
             }
           }
@@ -5040,8 +5018,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_GenerateKeyPair)
     pkcs11meta.object_id = template.id;
     pkcs11meta.object_type = YH_ASYMMETRIC_KEY;
     rv = write_meta_opaque(session, &pkcs11meta, false);
-    if(rv != CKR_OK) {
-      DBG_ERR("Failed to import meta data object");
+    if (rv != CKR_OK) {
+      DBG_ERR("Failed to import meta data object 0x%lx", rv);
       goto c_gkp_out;
     }
   }
